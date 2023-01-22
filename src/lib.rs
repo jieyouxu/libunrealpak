@@ -1,44 +1,8 @@
+use thiserror::Error;
+
 pub const MAGIC: u32 = 0x5A6F12E1;
 
-/// Footer of the `.pak` archive.
-#[derive(Debug, Clone, PartialEq)]
-pub enum Footer {
-    V3AndBelow {
-        common: FooterCommon,
-    },
-    V4ToV6 {
-        is_encrypted: bool,
-        common: FooterCommon,
-    },
-    V7 {
-        is_encrypted: bool,
-        encryption_key: [u8; 20],
-        common: FooterCommon,
-    },
-    V8 {
-        is_encrypted: bool,
-        encryption_key: [u8; 20],
-        common: FooterCommon,
-        compression_methods: [u8; 128],
-    },
-    V9 {
-        is_encrypted: bool,
-        encryption_key: [u8; 20],
-        common: FooterCommon,
-        is_frozen_index: bool,
-        compression_methods: [u8; 160],
-    },
-}
-
-/// Common footer properties shared by all known `.pak` versions.
-#[derive(Debug, Clone, PartialEq)]
-pub struct FooterCommon {
-    pub magic: u32,
-    pub version: Version,
-    pub index_offset: u64,
-    pub index_size: u64,
-    pub index_hash: [u8; 20],
-}
+mod footer;
 
 /// Major and minor versions of the Unreal `.pak` archive format.
 #[derive(Debug, Copy, Clone, PartialEq, PartialOrd)]
@@ -84,12 +48,12 @@ impl Version {
             4 + 4 + 8 + 8 + 20
         };
 
-        if self.major_version() >= 4 {
+        if self.major_version() >= 7 {
             // encryption uuid (16)
             size += 16;
         }
 
-        if self.major_version() >= 7 {
+        if self.major_version() >= 4 {
             // is encrypted (1)
             size += 1;
         }
@@ -111,4 +75,14 @@ impl Version {
 
         size
     }
+}
+
+#[derive(Debug, Error)]
+pub enum Error {
+    #[error("IO error: {0}")]
+    Io(#[from] std::io::Error),
+    #[error("magic mismatch: found {0}, expected {1}")]
+    MagicMismatch(u32, u32),
+    #[error("version mismatch: found {0}, expected {1}")]
+    VersionMismatch(u32, u32),
 }

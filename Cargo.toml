@@ -6,3 +6,9 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+byteorder = "1.4.3"
+thiserror = "1.0.38"
+
+[dev-dependencies]
+hex = "0.4.3"
+unpak = { git = "https://github.com/trumank/unpak" }

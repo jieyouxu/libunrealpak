@@ -190,7 +190,7 @@ fn read_bool<R: std::io::Read>(reader: &mut R) -> Result<bool, crate::Error> {
     Ok(b)
 }
 
-fn write_footer<W: std::io::Write>(writer: &mut W, f: &Footer) -> Result<(), crate::Error> {
+pub fn write_footer<W: std::io::Write>(writer: &mut W, f: &Footer) -> Result<(), crate::Error> {
     Ok(match f {
         Footer::V3AndBelow { common } => {
             write_footer_common(writer, common)?;
@@ -248,75 +248,4 @@ fn write_footer_common<W: std::io::Write>(
     writer.write_u64::<LE>(f.index_size)?;
     writer.write_all(&f.index_hash)?;
     Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-    use core::panic;
-    use std::io::{Seek, SeekFrom};
-
-    use super::*;
-    use crate::MAGIC;
-
-    const V5_FOOTER: Footer = Footer::V4ToV6 {
-        is_encrypted: false,
-        common: FooterCommon {
-            magic: MAGIC,
-            version: Version::V5,
-            index_offset: 0,
-            index_size: 10,
-            index_hash: [
-                5, 250, 114, 174, 234, 72, 106, 152, 121, 87, 255, 41, 46, 157, 12, 8, 72, 24, 194,
-                18,
-            ],
-        },
-    };
-
-    #[test]
-    fn test_read_footer_v5() {
-        let reference_footer = V5_FOOTER;
-        let Footer::V4ToV6 {
-            common: FooterCommon { version, .. },
-            ..
-        } = reference_footer else { panic!(); };
-
-        let bytes = include_bytes!("../tests/empty_packs/pack_v5.pak");
-        let mut reader = std::io::Cursor::new(bytes);
-        reader
-            .seek(SeekFrom::End(-(version.footer_size() as i64)))
-            .unwrap();
-        let our_footer = read_footer(&mut reader, Version::V5).unwrap();
-
-        assert_eq!(reference_footer, our_footer);
-    }
-
-    #[test]
-    fn test_write_footer_v5() {
-        let reference_footer = V5_FOOTER;
-        let Footer::V4ToV6 {
-            common: FooterCommon { version, .. },
-            ..
-        } = reference_footer else { panic!(); };
-
-        let reference_bytes = include_bytes!("../tests/empty_packs/pack_v5.pak");
-        let reference_bytes =
-            &reference_bytes[(reference_bytes.len() - version.footer_size() as usize)..];
-
-        let mut our_footer = Vec::new();
-        let mut writer = std::io::Cursor::new(&mut our_footer);
-        write_footer(&mut writer, &reference_footer).unwrap();
-
-        assert_eq!(reference_bytes, &our_footer[..])
-    }
-
-    #[test]
-    fn test_identity_footer_v5() {
-        let mut buf = Vec::new();
-        let mut writer = std::io::Cursor::new(&mut buf);
-        write_footer(&mut writer, &V5_FOOTER).unwrap();
-        let mut reader = std::io::Cursor::new(&mut buf);
-        let our_footer = read_footer(&mut reader, Version::V5).unwrap();
-
-        assert_eq!(our_footer, V5_FOOTER);
-    }
 }

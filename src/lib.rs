@@ -4,6 +4,8 @@ pub const MAGIC: u32 = 0x5A6F12E1;
 
 mod footer;
 
+pub use footer::*;
+
 /// Major and minor versions of the Unreal `.pak` archive format.
 #[derive(Debug, Copy, Clone, PartialEq, PartialOrd)]
 pub enum Version {

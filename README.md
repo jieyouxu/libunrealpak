@@ -1,15 +1,14 @@
 # libunrealpak
 
-`libunrealpak` is yet another Rust library for reading and writing Unreal Engine 4 `.pak` archives.
-This library's unpacking logic is mostly derived from
-[bananaturtlesandwich/unpak](https://github.com/bananaturtlesandwich/unpak) and
+`libunrealpak` is an exploratory rewrite of
+[bananaturtlesandwich/unpak](https://github.com/bananaturtlesandwich/unpak) and its fork
 [trumank/unpak](https://github.com/trumank/unpak).
 
-The goal of this library is to support these key use cases:
+The goal of this rewrite is to support these key use cases:
 
-- Reading a `.pak` archive to extract its metadata without reading the actual assets.
+- Extracting a `.pak` archive's metadata without reading the actual assets.
 - Unpacking a `.pak` archive.
-- Packing a `.pak` archive given a directory tree of assets.
+- Creating a new `.pak` archive.
 
 ## Related Projects
 

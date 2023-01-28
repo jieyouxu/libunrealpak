@@ -6,7 +6,7 @@ use core::panic;
 use std::io::{Read, Write};
 
 #[derive(Debug)]
-pub struct Footer {
+pub(crate) struct Footer {
     /// Present on versions >= 7.
     pub(crate) encryption_key_guid: Option<u128>,
     /// Present on versions >= 4.
@@ -24,7 +24,7 @@ pub struct Footer {
 }
 
 impl Footer {
-    pub fn size(&self) -> u32 {
+    pub(crate) fn size(&self) -> u32 {
         let mut size = 0;
         size += if self.encryption_key_guid.is_some() {
             16
@@ -55,7 +55,7 @@ impl Footer {
     }
 }
 
-pub fn read_footer<R: Read>(
+pub(crate) fn read_footer<R: Read>(
     reader: &mut R,
     version_hint: VersionMajor,
 ) -> Result<Footer, UnrealpakError> {
@@ -136,7 +136,7 @@ pub fn read_footer<R: Read>(
     })
 }
 
-pub fn write_footer<W: Write>(writer: &mut W, footer: &Footer) -> Result<(), UnrealpakError> {
+pub(crate) fn write_footer<W: Write>(writer: &mut W, footer: &Footer) -> Result<(), UnrealpakError> {
     if footer.version >= VersionMajor::EncryptionKeyGuid {
         writer.write_u128::<LE>(footer.encryption_key_guid.unwrap())?;
     }

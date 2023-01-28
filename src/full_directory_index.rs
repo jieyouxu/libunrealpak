@@ -1,13 +1,30 @@
 use crate::errors::UnrealpakError;
-use crate::ReadExt;
-use crate::ext::WriteExt;
-use byteorder::{ReadBytesExt, LE, WriteBytesExt};
+use crate::ext::{ReadExt, WriteExt};
+use byteorder::{ReadBytesExt, WriteBytesExt, LE};
 use std::collections::BTreeMap;
 use std::io::{Read, Write};
 
 /// Map<DirectoryName, Map<FileName, Offset>>
 #[derive(Debug, PartialEq)]
-pub(crate) struct FullDirectoryIndex(BTreeMap<String, BTreeMap<String, u32>>);
+pub(crate) struct FullDirectoryIndex(pub(crate) BTreeMap<String, BTreeMap<String, u32>>);
+
+impl FullDirectoryIndex {
+    pub(crate) fn serialized_size(&self) -> u64 {
+        let mut size = 0u64;
+        size += 4; // dir count
+        for (dir_name, map) in self.0.iter() {
+            size += 4; // dir_name size
+            size += dir_name.len() as u64 + 1; // dir_name with NUL terminating byte
+            size += 4; // file count
+            for (file_name, _offset) in map.iter() {
+                size += 4; // file_name size
+                size += file_name.len() as u64 + 1; // file_name with NUL terminating byte
+                size += 4; // offset
+            }
+        }
+        size
+    }
+}
 
 pub(crate) fn read_full_directory_index<R: Read>(
     reader: &mut R,
@@ -65,6 +82,10 @@ mod tests {
 
         let mut reader = Cursor::new(&mut v11_full_directory_index_bytes);
         let parsed_fdi = read_full_directory_index(&mut reader).unwrap();
+        assert_eq!(
+            parsed_fdi.serialized_size(),
+            v11_full_directory_index_bytes.len() as u64
+        );
 
         let expected_fdi = FullDirectoryIndex({
             let mut fdi = BTreeMap::new();

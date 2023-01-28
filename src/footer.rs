@@ -1,6 +1,7 @@
 use crate::errors::UnrealpakError;
 use crate::ext::{ReadExt, WriteExt};
-use crate::{Hash, VersionMajor};
+use crate::hash::Hash;
+use crate::version::VersionMajor;
 use byteorder::{ReadBytesExt, WriteBytesExt, LE};
 use core::panic;
 use std::io::{Read, Write};
@@ -136,7 +137,10 @@ pub(crate) fn read_footer<R: Read>(
     })
 }
 
-pub(crate) fn write_footer<W: Write>(writer: &mut W, footer: &Footer) -> Result<(), UnrealpakError> {
+pub(crate) fn write_footer<W: Write>(
+    writer: &mut W,
+    footer: &Footer,
+) -> Result<(), UnrealpakError> {
     if footer.version >= VersionMajor::EncryptionKeyGuid {
         writer.write_u128::<LE>(footer.encryption_key_guid.unwrap())?;
     }

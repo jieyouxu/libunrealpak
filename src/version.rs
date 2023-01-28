@@ -14,3 +14,29 @@ pub enum VersionMajor {
     PathHashIndex = 10,        // v10
     Fnv64BugFix = 11,          // v11
 }
+
+impl VersionMajor {
+    pub(crate) fn footer_size(&self) -> u64 {
+        // (magic + version): u32 + (offset + size): u64 + hash: [u8; 20]
+        let mut size = 4 + 4 + 8 + 8 + 20;
+        if *self >= VersionMajor::EncryptionKeyGuid {
+            // encryption uuid: u128
+            size += 16;
+        }
+        if *self >= VersionMajor::IndexEncryption {
+            // encrypted: bool
+            size += 1;
+        }
+        if *self == VersionMajor::FrozenIndex {
+            // frozen index: bool
+            size += 1;
+        }
+        // FIXME: this does not handle the distinction between v8a and v8b. v8a has 32 * 4 bytes
+        // while v8b has 32 * 5 bytes.
+        if *self >= VersionMajor::FNameBasedCompression {
+            // additional compression name
+            size += 32 * 5;
+        }
+        size
+    }
+}

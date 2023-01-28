@@ -1,4 +1,4 @@
-use crate::UnrealpakError;
+use crate::errors::UnrealpakError;
 use byteorder::{ReadBytesExt, WriteBytesExt, LE};
 use std::io::{Read, Write};
 
@@ -23,7 +23,7 @@ impl<R: Read> ReadExt for R {
         match self.read_u8()? {
             1 => Ok(true),
             0 => Ok(false),
-            err => Err(UnrealpakError::Bool(err)),
+            err => Err(UnrealpakError::Bool(err as u64)),
         }
     }
 

@@ -7,7 +7,7 @@ pub enum UnrealpakError {
     #[error("unrecognized input: validation for {0} failed")]
     ValidationError(&'static str),
     #[error("found invalid bool representation {0}")]
-    Bool(u8),
+    Bool(u64),
     #[error("{0}")]
     FromUtf16Error(#[from] std::string::FromUtf16Error),
     #[error("{0}")]
@@ -16,4 +16,6 @@ pub enum UnrealpakError {
     UnknownVersion(u32),
     #[error("version mismatch: expected version {expected} but found {actual}")]
     VersionMismatch { expected: u32, actual: u32 },
+    #[error("detected invalid offset: {0}")]
+    InvalidOffset(i64),
 }

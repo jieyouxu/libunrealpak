@@ -247,7 +247,7 @@ fn align(offset: u64) -> u64 {
     (offset + 15) & !15
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 pub(crate) enum EntryLocation {
     Data,
     Index,
@@ -259,7 +259,7 @@ pub(crate) fn write_record<W: Write>(
     record: &Record,
     location: EntryLocation,
 ) -> Result<(), UnrealpakError> {
-    if version >= VersionMajor::PathHashIndex {
+    if version >= VersionMajor::PathHashIndex && location == EntryLocation::Index {
         let compression_block_size = record.compression_block_size.unwrap_or_default();
         let compression_blocks_count = if let Some(b) = &record.blocks {
             b.len() as u32

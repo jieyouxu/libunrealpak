@@ -1,6 +1,6 @@
-# libunrealpak
+# unpak experiments
 
-`libunrealpak` is an exploratory rewrite of
+`libunrealpak` is a scratch exploratory repo for
 [bananaturtlesandwich/unpak](https://github.com/bananaturtlesandwich/unpak) and its fork
 [trumank/unpak](https://github.com/trumank/unpak).
 

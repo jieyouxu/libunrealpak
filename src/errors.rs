@@ -18,4 +18,8 @@ pub enum UnrealpakError {
     VersionMismatch { expected: u32, actual: u32 },
     #[error("detected invalid offset: {0}")]
     InvalidOffset(i64),
+    #[error("unsupported version")]
+    UnsupportedVersion,
+    #[error("missing key to decrypt encrypted pak")]
+    Encrypted,
 }

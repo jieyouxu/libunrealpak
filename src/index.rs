@@ -1,3 +1,4 @@
+use crate::decrypt::decrypt;
 use crate::errors::UnrealpakError;
 use crate::ext::{ReadExt, WriteExt};
 use crate::full_directory_index::{
@@ -23,35 +24,46 @@ pub(crate) struct Index {
 /// Reading an [`Index`] requires a reader to the full file stream because the offsets for
 /// `PashHashIndex` and `FullDirectoryIndex` are *absolute* and not *relative*.
 pub(crate) fn read_index<R: Read + Seek>(
-    reader: &mut R,
+    pak_reader: &mut R,
+    index_offset: u64,
+    index_size: u64,
     version: VersionMajor,
+    is_index_encrypted: bool,
+    key: Option<aes::Aes256Dec>,
 ) -> Result<Index, UnrealpakError> {
-    let mount_point = reader.read_cstring()?;
-    let record_count = reader.read_u32::<LE>()?;
+    pak_reader.seek(SeekFrom::Start(index_offset))?;
+    let mut index_buf = pak_reader.read_len(index_size as usize)?;
+    if is_index_encrypted {
+        decrypt(&key, &mut index_buf)?;
+    }
+    let mut index_reader = Cursor::new(&mut index_buf);
+
+    let mount_point = index_reader.read_cstring()?;
+    let record_count = index_reader.read_u32::<LE>()?;
     let path_hash_seed = if version >= VersionMajor::PathHashIndex {
-        Some(reader.read_u64::<LE>()?)
+        Some(index_reader.read_u64::<LE>()?)
     } else {
         None
     };
 
     let path_hash_index = if version >= VersionMajor::PathHashIndex {
-        let has_path_hash_index = match reader.read_u32::<LE>()? {
+        let has_path_hash_index = match index_reader.read_u32::<LE>()? {
             0 => false,
             1 => true,
             v => return Err(UnrealpakError::Bool(v as u64)),
         };
         if has_path_hash_index {
-            let path_hash_index_offset = reader.read_u64::<LE>()?;
-            let _path_hash_index_size = reader.read_u64::<LE>()?;
-            let _path_hash_index_hash = reader.read_hash()?;
-
-            let current_stream_position = reader.stream_position()?;
-            reader.seek(SeekFrom::Start(path_hash_index_offset))?;
-            let phi = read_path_hash_index(reader)?;
-            reader.seek(SeekFrom::Start(current_stream_position))?;
-
+            let path_hash_index_offset = index_reader.read_u64::<LE>()?;
+            let path_hash_index_size = index_reader.read_u64::<LE>()?;
             // TODO: verify PHI hash.
-
+            let _path_hash_index_hash = index_reader.read_hash()?;
+            pak_reader.seek(SeekFrom::Start(path_hash_index_offset))?;
+            let mut phi_buf = pak_reader.read_len(path_hash_index_size as usize)?;
+            if is_index_encrypted {
+                decrypt(&key, &mut phi_buf)?;
+            }
+            let mut phi_reader = Cursor::new(&mut phi_buf);
+            let phi = read_path_hash_index(&mut phi_reader)?;
             Some(phi)
         } else {
             None
@@ -61,23 +73,23 @@ pub(crate) fn read_index<R: Read + Seek>(
     };
 
     let full_directory_index = if version >= VersionMajor::PathHashIndex {
-        let has_full_directory_index = match reader.read_u32::<LE>()? {
+        let has_full_directory_index = match index_reader.read_u32::<LE>()? {
             0 => false,
             1 => true,
             v => return Err(UnrealpakError::Bool(v as u64)),
         };
         if has_full_directory_index {
-            let full_directory_index_offset = reader.read_u64::<LE>()?;
-            let _full_directory_index_size = reader.read_u64::<LE>()?;
-            let _full_directory_index_hash = reader.read_hash()?;
-
-            let current_stream_position = reader.stream_position()?;
-            reader.seek(SeekFrom::Start(full_directory_index_offset))?;
-            let fdi = read_full_directory_index(reader)?;
-            reader.seek(SeekFrom::Start(current_stream_position))?;
-
+            let full_directory_index_offset = index_reader.read_u64::<LE>()?;
+            let full_directory_index_size = index_reader.read_u64::<LE>()?;
             // TODO: verify FDI hash
-
+            let _full_directory_index_hash = index_reader.read_hash()?;
+            pak_reader.seek(SeekFrom::Start(full_directory_index_offset))?;
+            let mut fdi_buf = pak_reader.read_len(full_directory_index_size as usize)?;
+            if is_index_encrypted {
+                decrypt(&key, &mut fdi_buf)?;
+            }
+            let mut fdi_buf_reader = Cursor::new(&mut fdi_buf);
+            let fdi = read_full_directory_index(&mut fdi_buf_reader)?;
             Some(fdi)
         } else {
             None
@@ -86,10 +98,10 @@ pub(crate) fn read_index<R: Read + Seek>(
         None
     };
 
-    let _record_info_size = reader.read_u32::<LE>()?;
+    let _record_info_size = index_reader.read_u32::<LE>()?;
     let mut records = vec![];
     for _ in 0..record_count {
-        records.push(read_record(reader, version)?);
+        records.push(read_record(&mut index_reader, version)?);
     }
 
     Ok(Index {
@@ -107,6 +119,7 @@ pub(crate) fn write_index<W: Write + Seek>(
     index: &Index,
     version: VersionMajor,
 ) -> Result<(), UnrealpakError> {
+    // TODO: handle encryptindex
     writer.write_cstring(&index.mount_point)?;
     writer.write_u32::<LE>(index.record_count)?;
 
@@ -151,7 +164,9 @@ pub(crate) fn write_index<W: Write + Seek>(
             (None, None) => 2 * 4,
             (None, Some(_)) | (Some(_), None) => 2 * 4 + (8 + 8 + 20),
             (Some(_), Some(_)) => 2 * 4 + 2 * (8 + 8 + 20),
-        } + 4 + 4;
+        }
+        + 4
+        + 4;
     let fdi_offset = phi_offset + phi_buf.len() as u64;
     eprintln!("phi_offset = 0x{:X?}", phi_offset);
     dbg!(phi_buf.len());
@@ -194,27 +209,24 @@ fn sha1_hash(data: &[u8]) -> [u8; 20] {
 
 #[cfg(test)]
 mod tests {
-    use crate::compression::Compression;
-    use crate::footer::read_footer;
-
     use super::*;
+    use crate::compression::Compression;
     use std::collections::BTreeMap;
     use std::io::Cursor;
 
     #[test]
     fn test_read_index_pack_v11() {
         let mut pack_v11 = include_bytes!("../tests/packs/pack_v11.pak");
-        let mut reader = Cursor::new(&mut pack_v11);
-        reader
-            .seek(SeekFrom::End(
-                -(VersionMajor::Fnv64BugFix.footer_size() as i64),
-            ))
-            .unwrap();
-        let index_offset = read_footer(&mut reader, VersionMajor::Fnv64BugFix)
-            .unwrap()
-            .index_offset;
-        reader.seek(SeekFrom::Start(index_offset)).unwrap();
-        let index = read_index(&mut reader, VersionMajor::Fnv64BugFix).unwrap();
+        let mut pak_reader = Cursor::new(&mut pack_v11);
+        let index = read_index(
+            &mut pak_reader,
+            0x34F7,
+            0xAD,
+            VersionMajor::Fnv64BugFix,
+            false,
+            None,
+        )
+        .unwrap();
 
         assert_eq!(index.mount_point, "../mount/point/root/".to_owned());
         assert_eq!(index.record_count, 4);

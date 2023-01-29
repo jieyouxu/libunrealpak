@@ -1,3 +1,5 @@
+use std::slice::Iter;
+
 #[derive(Debug, Copy, Clone, PartialEq, PartialOrd)]
 #[repr(u32)]
 pub enum VersionMajor {
@@ -13,6 +15,26 @@ pub enum VersionMajor {
     FrozenIndex = 9,           // v9 frozen index byte included
     PathHashIndex = 10,        // v10
     Fnv64BugFix = 11,          // v11
+}
+
+impl VersionMajor {
+    pub(crate) fn iterator() -> Iter<'static, Self> {
+        use VersionMajor::*;
+        static VERSIONS: [VersionMajor; 11] = [
+            Initial,
+            NoTimestamps,
+            CompressionEncryption,
+            IndexEncryption,
+            RelativeChunkOffsets,
+            DeleteRecords,
+            EncryptionKeyGuid,
+            FNameBasedCompression,
+            FrozenIndex,
+            PathHashIndex,
+            Fnv64BugFix,
+        ];
+        VERSIONS.iter()
+    }
 }
 
 impl VersionMajor {

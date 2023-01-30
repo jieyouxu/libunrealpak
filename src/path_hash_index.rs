@@ -1,7 +1,6 @@
 use byteorder::{ReadBytesExt, WriteBytesExt, LE};
 
 use crate::errors::UnrealpakError;
-use crate::ext::ReadExt;
 use std::io::{Read, Write};
 
 /// Hash and EncodedRecord offset entries.

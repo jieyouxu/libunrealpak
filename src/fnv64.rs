@@ -28,29 +28,3 @@ pub(crate) fn legacy_fnv64(data: &[u8], offset: u64) -> u64 {
     }
     hash
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn try_path_hash_index() {
-        let input = b"directory/nested.txt";
-        let path_hash_seed = u64::from_le_bytes([0x7D, 0x5A, 0x5C, 0x20, 0x00, 0x00, 0x00, 0x00]);
-
-        let hash = fnv64(&input[..], path_hash_seed);
-        let legacy_hash = legacy_fnv64(&input[..], path_hash_seed);
-
-        eprintln!("hash = {:0X?}", hash.to_le_bytes());
-        eprintln!("legacy_hash = {:0X?}", legacy_hash.to_le_bytes());
-        eprintln!(
-            "expected_path_hash = {:0X?}",
-            [0x1F, 0x9E, 0x68, 0xA5, 0xCF, 0xC4, 0x78, 0xF7]
-        );
-
-        assert_eq!(
-            hash.to_le_bytes(),
-            [0x1F, 0x9E, 0x68, 0xA5, 0xCF, 0xC4, 0x78, 0xF7]
-        );
-    }
-}

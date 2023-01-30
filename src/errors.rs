@@ -1,3 +1,5 @@
+use std::ffi::OsString;
+
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -22,4 +24,6 @@ pub enum UnrealpakError {
     UnsupportedVersion,
     #[error("missing key to decrypt encrypted pak")]
     Encrypted,
+    #[error("failed to convert OsString to bytes")]
+    OsString(OsString),
 }

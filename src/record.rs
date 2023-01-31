@@ -261,8 +261,8 @@ pub(crate) fn write_record<W: Write>(
 ) -> Result<(), UnrealpakError> {
     if version >= VersionMajor::PathHashIndex && location == EntryLocation::Index {
         let compression_block_size = record.compression_block_size.unwrap_or_default();
-        let compression_blocks_count = if let Some(b) = &record.blocks {
-            b.len() as u32
+        let compression_blocks_count = if record.compression_method != Compression::None {
+            record.blocks.as_ref().unwrap().len() as u32
         } else {
             0
         };
@@ -312,6 +312,38 @@ pub(crate) fn write_record<W: Write>(
         }
 
         Ok(())
+    } else if version >= VersionMajor::PathHashIndex && location == EntryLocation::Data {
+        writer.write_u64::<LE>(match location {
+            EntryLocation::Data => 0,
+            EntryLocation::Index => record.offset,
+        })?;
+        writer.write_u64::<LE>(record.compressed_size)?;
+        writer.write_u64::<LE>(record.uncompressed_size)?;
+        let compression: u8 = match record.compression_method {
+            Compression::None => 0,
+            Compression::Zlib => 1,
+            Compression::Gzip => todo!(),
+            Compression::Oodle => todo!(),
+        };
+
+        writer.write_u32::<LE>(compression.into())?;
+
+        if let Some(hash) = &record.hash {
+            writer.write_all(&hash.0)?;
+        } else {
+            panic!("hash missing");
+        }
+
+        if version >= VersionMajor::CompressionEncryption {
+            // if let Some(blocks) = &record.blocks {
+            //     for block in blocks {
+            //         write_block(writer, block)?;
+            //     }
+            // }
+            writer.write_bool(record.is_encrypted.unwrap())?;
+            writer.write_u32::<LE>(record.compression_block_size.unwrap_or_default())?;
+        }
+        Ok(())
     } else {
         writer.write_u64::<LE>(match location {
             EntryLocation::Data => 0,
@@ -338,15 +370,6 @@ pub(crate) fn write_record<W: Write>(
             panic!("hash missing");
         }
 
-        if version >= VersionMajor::CompressionEncryption {
-            if let Some(blocks) = &record.blocks {
-                for block in blocks {
-                    write_block(writer, block)?;
-                }
-            }
-            writer.write_bool(record.is_encrypted.unwrap())?;
-            writer.write_u32::<LE>(record.compression_block_size.unwrap_or_default())?;
-        }
         Ok(())
     }
 }

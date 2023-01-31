@@ -22,8 +22,9 @@ pub(crate) struct Index {
 }
 
 impl Index {
+    pub(crate) const ENCODED_INDEX_RECORD_SIZE: u64 = 0xC;
+
     pub(crate) fn serialized_size(&self, version: VersionMajor) -> u64 {
-        const ENCODED_INDEX_RECORD_SIZE: u64 = 0xC;
         if version >= VersionMajor::PathHashIndex {
             4 // mount point size
             + self.mount_point.len() as u64 + 1 // mount point with terminating byte
@@ -34,7 +35,7 @@ impl Index {
             + 4 // has full directory index
             + if self.full_directory_index.is_some() { 8 + 8 + 20 } else { 0 }
             + 4 // encoded entry size
-            + self.records.len() as u64 * ENCODED_INDEX_RECORD_SIZE // encoded records
+            + self.records.len() as u64 * Self::ENCODED_INDEX_RECORD_SIZE // encoded records
             + 4 // file count
         } else {
             todo!()
@@ -169,7 +170,7 @@ pub(crate) fn write_index<W: Write + Seek>(
         assert!(!index.records.is_empty());
         let mut size = 0;
         for r in &index.records {
-            size += r.serialized_size(version, r.compression_method)
+            size += Index::ENCODED_INDEX_RECORD_SIZE;
         }
         size
     } else {

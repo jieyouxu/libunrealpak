@@ -21,6 +21,27 @@ pub(crate) struct Index {
     pub(crate) records: Vec<Record>,
 }
 
+impl Index {
+    pub(crate) fn serialized_size(&self, version: VersionMajor) -> u64 {
+        const ENCODED_INDEX_RECORD_SIZE: u64 = 0xC;
+        if version >= VersionMajor::PathHashIndex {
+            4 // mount point size
+            + self.mount_point.len() as u64 + 1 // mount point with terminating byte
+            + 4 // entry count
+            + 8 // path hash seed
+            + 4 // has path hash index
+            + if self.path_hash_index.is_some() { 8 + 8 + 20 } else { 0 } // path hash index meta
+            + 4 // has full directory index
+            + if self.full_directory_index.is_some() { 8 + 8 + 20 } else { 0 }
+            + 4 // encoded entry size
+            + self.records.len() as u64 * ENCODED_INDEX_RECORD_SIZE // encoded records
+            + 4 // file count
+        } else {
+            todo!()
+        }
+    }
+}
+
 /// Reading an [`Index`] requires a reader to the full file stream because the offsets for
 /// `PashHashIndex` and `FullDirectoryIndex` are *absolute* and not *relative*.
 pub(crate) fn read_index<R: Read + Seek>(
@@ -117,6 +138,7 @@ pub(crate) fn read_index<R: Read + Seek>(
 pub(crate) fn write_index<W: Write + Seek>(
     writer: &mut W,
     index: &Index,
+    offset: u64,
     version: VersionMajor,
 ) -> Result<(), UnrealpakError> {
     // TODO: handle encryptindex
@@ -156,17 +178,8 @@ pub(crate) fn write_index<W: Write + Seek>(
 
     dbg!(records_size);
 
-    let current_pos = writer.stream_position()?;
-
-    let phi_offset = current_pos
-        + records_size
-        + match (&index.path_hash_index, &index.full_directory_index) {
-            (None, None) => 2 * 4,
-            (None, Some(_)) | (Some(_), None) => 2 * 4 + (8 + 8 + 20),
-            (Some(_), Some(_)) => 2 * 4 + 2 * (8 + 8 + 20),
-        }
-        + 4
-        + 4;
+    dbg!(index.serialized_size(version));
+    let phi_offset = offset + index.serialized_size(version);
     let fdi_offset = phi_offset + phi_buf.len() as u64;
     eprintln!("phi_offset = 0x{:X?}", phi_offset);
     dbg!(phi_buf.len());
@@ -418,19 +431,18 @@ mod tests {
         };
 
         let expected_bytes = include_bytes!("../tests/packs/pack_v11.pak");
-        let mut actual_bytes = vec![0u8; expected_bytes.len()];
+        let mut actual_bytes = vec![0u8; 173];
         let mut writer = Cursor::new(&mut actual_bytes);
         let index_offset = 0x34F7usize;
-        writer.seek(SeekFrom::Start(index_offset as u64)).unwrap();
         let footer_offset = expected_bytes.len() - VersionMajor::Fnv64BugFix.footer_size() as usize;
-        write_index(&mut writer, &index, VersionMajor::Fnv64BugFix).unwrap();
+        write_index(&mut writer, &index, 0x34F7, VersionMajor::Fnv64BugFix).unwrap();
 
         eprintln!("{:02X?}", &expected_bytes[index_offset..footer_offset]);
-        eprintln!("{:02X?}", &actual_bytes[index_offset..footer_offset]);
+        eprintln!("{:02X?}", &actual_bytes[..]);
 
         assert_eq!(
             &expected_bytes[index_offset..footer_offset],
-            &actual_bytes[index_offset..footer_offset]
+            &actual_bytes[..]
         )
     }
 }
